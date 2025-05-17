@@ -41,7 +41,7 @@ from utils.utils_fit import fit_one_epoch
 '''
 if __name__ == "__main__":
     #训练完是否关机
-    shutdown = True
+    shutdown = False
     #停止的epoch
     stop_at = 999
     #---------------------------------#
@@ -103,11 +103,11 @@ if __name__ == "__main__":
     #   一般来讲，网络从0开始的训练效果会很差，因为权值太过随机，特征提取效果不明显，因此非常、非常、非常不建议大家从0开始训练！
     #   如果一定要从0开始，可以了解imagenet数据集，首先训练分类模型，获得网络的主干部分权值，分类模型的 主干部分 和该模型通用，基于此进行训练。
     #----------------------------------------------------------------------------------------------------------------------------#
-    model_path      = 'logs/ep170-bs8-is768/ep146-loss0.098-val_loss0.075.pth'
+    model_path      = 'logs\ep200-bs7-is704.pth'
     #------------------------------------------------------#
     #   input_shape     输入的shape大小，一定要是32的倍数
     #------------------------------------------------------#
-    input_shape     = [768, 768]
+    input_shape     = [704, 704]
     #----------------------------------------------------------------------------------------------------------------------------#
     #   pretrained      是否使用主干网络的预训练权重，此处使用的是主干的权重，因此是在模型构建的时候进行加载的。
     #                   如果设置了model_path，则主干的权值无需加载，pretrained的值无意义。
@@ -157,7 +157,7 @@ if __name__ == "__main__":
     #   Freeze_batch_size   模型冻结训练的batch_size
     #                       (当Freeze_Train=False时失效)
     #------------------------------------------------------------------#
-    Init_Epoch          = 146
+    Init_Epoch          = 200
     Freeze_Epoch        = 150
     Freeze_batch_size   = 12
     #------------------------------------------------------------------#
@@ -169,8 +169,8 @@ if __name__ == "__main__":
     #                           Adam可以使用相对较小的UnFreeze_Epoch
     #   Unfreeze_batch_size     模型在解冻后的batch_size
     #------------------------------------------------------------------#
-    UnFreeze_Epoch      = 170
-    Unfreeze_batch_size = 8
+    UnFreeze_Epoch      = 250
+    Unfreeze_batch_size = 7
     #------------------------------------------------------------------#
     #   Freeze_Train    是否进行冻结训练
     #                   默认先冻结主干训练后解冻训练。
@@ -184,7 +184,7 @@ if __name__ == "__main__":
     #   Init_lr         模型的最大学习率
     #   Min_lr          模型的最小学习率，默认为最大学习率的0.01
     #------------------------------------------------------------------#
-    Init_lr             = 1e-3
+    Init_lr             = 1e-4
     Min_lr              = Init_lr * 0.01
     #------------------------------------------------------------------#
     #   optimizer_type  使用到的优化器种类，可选的有adam、sgd
@@ -237,7 +237,7 @@ if __name__ == "__main__":
     #                   开启后会加快数据读取速度，但是会占用更多内存
     #                   内存较小的电脑可以设置为2或者0  
     #------------------------------------------------------------------#
-    num_workers         = 12
+    num_workers         = 10
 
     #----------------------------------------------------#
     #   获得图片路径和标签
@@ -409,7 +409,7 @@ if __name__ == "__main__":
         #-------------------------------------------------------------------#
         nbs             = 64
         lr_limit_max    = 1e-3 if optimizer_type == 'adam' else 5e-2
-        lr_limit_min    = 3e-4 if optimizer_type == 'adam' else 5e-4
+        lr_limit_min    = 3e-9 if optimizer_type == 'adam' else 5e-4
         Init_lr_fit     = min(max(batch_size / nbs * Init_lr, lr_limit_min), lr_limit_max)
         Min_lr_fit      = min(max(batch_size / nbs * Min_lr, lr_limit_min * 1e-2), lr_limit_max * 1e-2)
 
@@ -493,7 +493,7 @@ if __name__ == "__main__":
                 #-------------------------------------------------------------------#
                 nbs             = 64
                 lr_limit_max    = 1e-3 if optimizer_type == 'adam' else 5e-2
-                lr_limit_min    = 3e-4 if optimizer_type == 'adam' else 5e-4
+                lr_limit_min    = 3e-9 if optimizer_type == 'adam' else 5e-4
                 Init_lr_fit     = min(max(batch_size / nbs * Init_lr, lr_limit_min), lr_limit_max)
                 Min_lr_fit      = min(max(batch_size / nbs * Min_lr, lr_limit_min * 1e-2), lr_limit_max * 1e-2)
                 #---------------------------------------#
