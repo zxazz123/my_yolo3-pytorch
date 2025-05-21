@@ -20,10 +20,9 @@ class YOLOLoss(nn.Module):
         self.anchors_mask   = anchors_mask
 
         self.alpha_iou      = True
-        self.giou           = True
-        self.ciou           = True
+        self.gciou          = True
         self.balance        = [0.4, 1.0, 4]
-        self.box_ratio      = 0.05 if (int(self.giou) + int(self.ciou)) <= 1 else 0.05/(int(self.giou) + int(self.ciou))
+        self.box_ratio      = 0.05
         self.obj_ratio      = 5 * (input_shape[0] * input_shape[1]) / (416 ** 2)
         self.cls_ratio      = 1 * (num_classes / 80)
 
@@ -45,7 +44,7 @@ class YOLOLoss(nn.Module):
         output  = - target * torch.log(pred) - (1.0 - target) * torch.log(1.0 - pred)
         return output
 
-    def box_giou(self, b1, b2):
+    '''def box_giou(self, b1, b2):
         """
         输入为：
         ----------
@@ -92,7 +91,7 @@ class YOLOLoss(nn.Module):
         enclose_maxes   = torch.max(b1_maxes, b2_maxes)
         enclose_wh      = torch.max(enclose_maxes - enclose_mins, torch.zeros_like(intersect_maxes))
         #----------------------------------------------------#
-        #   计算对角线距离
+        #   计算闭包区面积
         #----------------------------------------------------#
         enclose_area    = enclose_wh[..., 0] * enclose_wh[..., 1]
 
@@ -103,9 +102,9 @@ class YOLOLoss(nn.Module):
         
         giou            = torch.pow(iou,alpha) - torch.pow((enclose_area - union_area) / (enclose_area  + 1e-6),alpha)
         
-        return giou
+        return giou'''
         
-    def box_ciou(self, b1, b2):
+    '''def box_ciou(self, b1, b2):
         """
         输入为：
         ----------
@@ -170,8 +169,78 @@ class YOLOLoss(nn.Module):
             alpha = 1
 
         ciou = torch.pow(iou,alpha) - torch.pow(diou,alpha) - torch.pow(a*v,alpha)
-        return ciou
-    
+        return ciou'''
+    def box_gciou(self, b1, b2):
+        """
+        输入为：
+        ----------
+        b1: tensor, shape=(batch, feat_w, feat_h, anchor_num, 4), xywh
+        b2: tensor, shape=(batch, feat_w, feat_h, anchor_num, 4), xywh
+
+        返回为：
+        -------
+        gciou: tensor, shape=(batch, feat_w, feat_h, anchor_num, 1)
+        """
+        #----------------------------------------------------#
+        #   求出预测框左上角右下角
+        #----------------------------------------------------#
+        b1_xy       = b1[..., :2]
+        b1_wh       = b1[..., 2:4]
+        b1_wh_half  = b1_wh/2.
+        b1_mins     = b1_xy - b1_wh_half
+        b1_maxes    = b1_xy + b1_wh_half
+        #----------------------------------------------------#
+        #   求出真实框左上角右下角
+        #----------------------------------------------------#
+        b2_xy       = b2[..., :2]
+        b2_wh       = b2[..., 2:4]
+        b2_wh_half  = b2_wh/2.
+        b2_mins     = b2_xy - b2_wh_half
+        b2_maxes    = b2_xy + b2_wh_half
+
+        #----------------------------------------------------#
+        #   求真实框和预测框所有的iou
+        #----------------------------------------------------#
+        intersect_mins  = torch.max(b1_mins, b2_mins)
+        intersect_maxes = torch.min(b1_maxes, b2_maxes)
+        intersect_wh    = torch.max(intersect_maxes - intersect_mins, torch.zeros_like(intersect_maxes))
+        intersect_area  = intersect_wh[..., 0] * intersect_wh[..., 1]
+        b1_area         = b1_wh[..., 0] * b1_wh[..., 1]
+        b2_area         = b2_wh[..., 0] * b2_wh[..., 1]
+        union_area      = b1_area + b2_area - intersect_area
+        iou             = intersect_area / union_area
+
+        #----------------------------------------------------#
+        #   找到包裹两个框的最小框的对角线
+        #----------------------------------------------------#
+        enclose_mins    = torch.min(b1_mins, b2_mins)
+        enclose_maxes   = torch.max(b1_maxes, b2_maxes)
+        enclose_wh      = torch.max(enclose_maxes - enclose_mins, torch.zeros_like(intersect_maxes))
+        enclose_diagonal_line = torch.pow(enclose_wh[...,0],2) + torch.pow(enclose_wh[...,1],2)
+        #----------------------------------------------------#
+        #   计算预测框和真实框中心距离
+        #----------------------------------------------------#
+        b1_b2_xd    = torch.abs(b1_xy[...,0] - b2_xy[...,0])
+        b1_b2_yd    = torch.abs(b1_xy[...,1] - b2_xy[...,1])
+        b1_b2_cd    = torch.pow(b1_b2_xd,2) + torch.pow(b1_b2_yd,2)
+        diou            = b1_b2_cd / torch.clamp(enclose_diagonal_line,1e-6)
+
+        pi = torch.acos(torch.tensor(0.0)).item() * 2
+        v = (4/ (pi ** 2)) * torch.pow(torch.atan(b2_wh[...,0] / torch.clamp(b2_wh[...,1],1e-6)) - torch.atan(b1_wh[...,0] / torch.clamp(b1_wh[...,1],1e-6)), 2)
+        a = v / torch.clamp((1 - iou + v),1e-6)
+
+        #----------------------------------------------------#
+        #   计算闭包区面积
+        #----------------------------------------------------#
+        enclose_area    = enclose_wh[..., 0] * enclose_wh[..., 1]
+
+        if self.alpha_iou:
+            alpha = 2
+        else:
+            alpha = 1
+
+        gciou = torch.pow(iou,alpha) - torch.pow(diou,alpha) - torch.pow(a*v,alpha) - torch.pow((enclose_area - union_area) / (enclose_area  + 1e-6),alpha)
+        return gciou
     def forward(self, l, input, targets=None):
         #----------------------------------------------------#
         #   l代表的是，当前输入进来的有效特征层，是第几个有效特征层
@@ -255,17 +324,13 @@ class YOLOLoss(nn.Module):
         obj_mask    = y_true[..., 4] == 1
         n           = torch.sum(obj_mask)
         if n != 0:
-            if self.giou or self.ciou:
+            if self.gciou:
                 #---------------------------------------------------------------#
-                #   计算预测结果和真实结果的giou
+                #   计算预测结果和真实结果的gciou
                 #----------------------------------------------------------------#
-                loss_loc = 0
-                if self.giou:
-                    giou        = self.box_giou(pred_boxes, y_true[..., :4]).type_as(x)
-                    loss_loc    += torch.mean((1 - giou)[obj_mask])
-                if self.ciou:
-                    ciou        = self.box_ciou(pred_boxes, y_true[..., :4]).type_as(x)
-                    loss_loc    += torch.mean((1 - ciou)[obj_mask])
+                gciou        = self.box_gciou(pred_boxes, y_true[..., :4]).type_as(x)
+                loss_loc     = torch.mean((1 - gciou)[obj_mask])
+                
             else:
                 #-----------------------------------------------------------#
                 #   计算中心偏移情况的loss，使用BCELoss效果好一些
@@ -403,7 +468,7 @@ class YOLOLoss(nn.Module):
                 #----------------------------------------#
                 #   tx、ty代表中心调整参数的真实值
                 #----------------------------------------#
-                if not self.giou and not self.ciou:
+                if not self.gciou:
                     #----------------------------------------#
                     #   tx、ty代表中心调整参数的真实值
                     #----------------------------------------#
