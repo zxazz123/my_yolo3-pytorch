@@ -329,7 +329,7 @@ class YOLOLoss(nn.Module):
                 #   计算预测结果和真实结果的gciou
                 #----------------------------------------------------------------#
                 gciou        = self.box_gciou(pred_boxes, y_true[..., :4]).type_as(x)
-                loss_loc     = torch.mean((1 - gciou)[obj_mask])
+                loss_loc     = torch.mean((1 - gciou)[obj_mask] * box_loss_scale[obj_mask])
                 
             else:
                 #-----------------------------------------------------------#
